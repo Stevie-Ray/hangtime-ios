@@ -5,7 +5,7 @@ struct Cookie {
     var value: String
 }
 
-let gcmMessageIDKey = "00000000000" // update this with actual ID if using Firebase 
+let gcmMessageIDKey = "292866814265" // update this with actual ID if using Firebase
 
 // URL for first launch
 let rootUrl = URL(string: "https://hangtime.stevie-ray.nl/?utm_source=homescreen")!
@@ -16,7 +16,7 @@ let allowedOrigins: [String] = ["hangtime.stevie-ray.nl"]
 
 // auth origins will open in modal and show toolbar for back into the main origin.
 // These should also appear in Info.plist
-let authOrigins: [String] = ["facebook.com","accounts.google.com","appleid.apple.com","identitytoolkit.googleapis.com","hangtime.stevie-ray.nl","hangtime-app.firebaseapp.com","hangtime-app.appspot.com"]
+let authOrigins: [String] = ["accounts.google.com","appleid.apple.com","identitytoolkit.googleapis.com","hangtime-app.firebaseapp.com","hangtime-app.appspot.com"]
 // allowedOrigins + authOrigins <= 10
 
 let platformCookie = Cookie(name: "app-platform", value: "iOS App Store")

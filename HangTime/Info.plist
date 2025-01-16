@@ -96,14 +96,11 @@
 	<true/>
 	<key>WKAppBoundDomains</key>
 	<array>
-		<string>facebook.com</string>
 		<string>accounts.google.com</string>
 		<string>appleid.apple.com</string>
 		<string>identitytoolkit.googleapis.com</string>
-		<string>hangtime.stevie-ray.nl</string>
 		<string>hangtime-app.firebaseapp.com</string>
 		<string>hangtime-app.appspot.com</string>
-		<string>hangtime.stevie-ray.nl</string>
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
