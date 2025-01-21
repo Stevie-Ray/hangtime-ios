@@ -383,7 +383,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.1.3;
+				MARKETING_VERSION = 2.1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "nl.stevie-ray.hangtime";
 				PRODUCT_NAME = HangTime;
 				PROVISIONING_PROFILE_SPECIFIER = "Stevie-Ray Hartog";
@@ -417,7 +417,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.1.3;
+				MARKETING_VERSION = 2.1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "nl.stevie-ray.hangtime";
 				PRODUCT_NAME = HangTime;
 				PROVISIONING_PROFILE_SPECIFIER = "Stevie-Ray Hartog";

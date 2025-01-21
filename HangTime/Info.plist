@@ -96,6 +96,7 @@
 	<true/>
 	<key>WKAppBoundDomains</key>
 	<array>
+		<string>hangtime.stevie-ray.nl</string>
 		<string>accounts.google.com</string>
 		<string>appleid.apple.com</string>
 		<string>identitytoolkit.googleapis.com</string>
