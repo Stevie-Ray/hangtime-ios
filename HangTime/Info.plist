@@ -127,9 +127,9 @@
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemType</key>
-			<string>https://hangtime.stevie-ray.nl/activity?utm_source=shortcut</string>
+			<string>https://hangtime.stevie-ray.nl/feed?utm_source=shortcut</string>
 			<key>UIApplicationShortcutItemTitle</key>
-			<string>Activity</string>
+			<string>Feed</string>
 		</dict>
 	</array>
 </dict>

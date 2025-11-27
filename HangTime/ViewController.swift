@@ -58,11 +58,13 @@ class ViewController: UIViewController, WKNavigationDelegate, UIDocumentInteract
         
         HangTime.webView.addObserver(self, forKeyPath: #keyPath(WKWebView.estimatedProgress), options: .new, context: nil)
 
-        if(pullToRefresh){
+        if pullToRefresh {
+            #if !targetEnvironment(macCatalyst)
             let refreshControl = UIRefreshControl()
-            refreshControl.addTarget(self, action: #selector(refreshWebView(_:)), for: UIControl.Event.valueChanged)
+            refreshControl.addTarget(self, action: #selector(refreshWebView(_:)), for: .valueChanged)
             HangTime.webView.scrollView.addSubview(refreshControl)
             HangTime.webView.scrollView.bounces = true
+            #endif
         }
 
         if #available(iOS 15.0, *), adaptiveUIStyle {
