@@ -118,6 +118,20 @@ jobs:
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           echo "Using build number $BUILD_NUMBER"
 
+      - name: Configure the app provisioning profile
+        run: |
+          set -euo pipefail
+          PROJECT_FILE="HangTime.xcodeproj/project.pbxproj"
+
+          sed -E -i '' \
+            "s/(PROVISIONING_PROFILE_SPECIFIER = )\"[^\"]*\";/\\1\"$PROFILE_NAME\";/g" \
+            "$PROJECT_FILE"
+
+          if ! grep -q "PROVISIONING_PROFILE_SPECIFIER = \"$PROFILE_NAME\";" "$PROJECT_FILE"; then
+            echo "::error::Failed to configure the HangTime provisioning profile."
+            exit 1
+          fi
+
       - name: Archive the app
         run: |
           set -euo pipefail
@@ -130,7 +144,6 @@ jobs:
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             clean archive
 
