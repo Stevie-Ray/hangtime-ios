@@ -1,9 +1,11 @@
 import UIKit
 import WebKit
+import StoreKit
 
 var webView: WKWebView! = nil
 
 class ViewController: UIViewController, WKNavigationDelegate, UIDocumentInteractionControllerDelegate {
+    private let storeKitBridge = StoreKitBridge()
     
     var documentController: UIDocumentInteractionController?
     func documentInteractionControllerViewControllerForPreview(_ controller: UIDocumentInteractionController) -> UIViewController {
@@ -34,6 +36,7 @@ class ViewController: UIViewController, WKNavigationDelegate, UIDocumentInteract
     override func viewDidLoad() {
         super.viewDidLoad()
         initWebView()
+        storeKitBridge.start()
         initToolbarView()
         loadRootUrl()
     
@@ -234,17 +237,296 @@ extension ViewController: WKScriptMessageHandler {
         if message.name == "print" {
             printView(webView: HangTime.webView)
         }
-        if message.name == "push-subscribe" {
+        else if message.name == "push-subscribe" {
             handleSubscribeTouch(message: message)
         }
-        if message.name == "push-permission-request" {
+        else if message.name == "push-permission-request" {
             handlePushPermission()
         }
-        if message.name == "push-permission-state" {
+        else if message.name == "push-permission-state" {
             handlePushState()
         }
-        if message.name == "push-token" {
+        else if message.name == "push-token" {
             handleFCMToken()
         }
+        else if message.name == "iap-products-request" {
+            Task {
+                await storeKitBridge.fetchProducts()
+            }
+        }
+        else if message.name == "iap-purchase-request" {
+            let body = message.body as? [String: Any]
+            let productID = body?["productID"] as? String
+            Task {
+                await storeKitBridge.purchase(productID: productID)
+            }
+        }
+        else if message.name == "iap-transactions-request" {
+            Task {
+                await storeKitBridge.refreshEntitlements()
+            }
+        }
+        else if message.name == "iap-restore-request" {
+            Task {
+                await storeKitBridge.restorePurchases()
+            }
+        }
   }
+}
+
+private struct StoreKitSubscriptionPeriod: Encodable {
+    let value: Int
+    let unit: String
+}
+
+private struct StoreKitProductPayload: Encodable {
+    let id: String
+    let displayName: String
+    let description: String
+    let displayPrice: String
+    let price: String
+    let currencyCode: String
+    let subscriptionPeriod: StoreKitSubscriptionPeriod?
+}
+
+private struct StoreKitTransactionPayload: Encodable {
+    let productID: String
+    let transactionID: String
+    let originalTransactionID: String
+    let purchaseDate: Date
+    let expirationDate: Date?
+}
+
+private struct StoreKitProductsResponse: Encodable {
+    let products: [StoreKitProductPayload]
+    let error: String?
+}
+
+private struct StoreKitEntitlementsResponse: Encodable {
+    let entitlements: [StoreKitTransactionPayload]
+    let hasActiveSubscription: Bool
+}
+
+private struct StoreKitPurchaseResponse: Encodable {
+    let status: String
+    let transaction: StoreKitTransactionPayload?
+    let error: String?
+}
+
+private struct StoreKitRestoreResponse: Encodable {
+    let status: String
+    let error: String?
+}
+
+@MainActor
+private final class StoreKitBridge {
+    private static let subscriptionProductID = "subscription"
+
+    private var products: [Product] = []
+    private var transactionUpdates: Task<Void, Never>?
+
+    deinit {
+        transactionUpdates?.cancel()
+    }
+
+    func start() {
+        guard transactionUpdates == nil else { return }
+
+        transactionUpdates = Task { [weak self] in
+            for await result in StoreKit.Transaction.updates {
+                guard !Task.isCancelled else { return }
+                guard case .verified(let transaction) = result else { continue }
+
+                await transaction.finish()
+                await self?.refreshEntitlements()
+            }
+        }
+    }
+
+    func fetchProducts() async {
+        do {
+            products = try await Product.products(for: [Self.subscriptionProductID])
+                .filter(isMonthlySubscription)
+
+            dispatch(
+                eventName: "iap-products-result",
+                payload: StoreKitProductsResponse(
+                    products: products.map(productPayload),
+                    error: products.isEmpty ? "The monthly subscription is not available." : nil
+                )
+            )
+        } catch {
+            products = []
+            dispatch(
+                eventName: "iap-products-result",
+                payload: StoreKitProductsResponse(products: [], error: error.localizedDescription)
+            )
+        }
+    }
+
+    func purchase(productID: String?) async {
+        guard productID == Self.subscriptionProductID else {
+            dispatchPurchase(status: "failed", error: "Invalid subscription product.")
+            return
+        }
+
+        if products.isEmpty {
+            do {
+                products = try await Product.products(for: [Self.subscriptionProductID])
+                    .filter(isMonthlySubscription)
+            } catch {
+                dispatchPurchase(status: "failed", error: error.localizedDescription)
+                return
+            }
+        }
+
+        guard let product = products.first(where: { $0.id == productID }) else {
+            dispatchPurchase(status: "failed", error: "The monthly subscription is not available.")
+            return
+        }
+
+        do {
+            switch try await product.purchase() {
+            case .success(let verificationResult):
+                guard case .verified(let transaction) = verificationResult else {
+                    dispatchPurchase(status: "failed", error: "The App Store transaction could not be verified.")
+                    return
+                }
+
+                await transaction.finish()
+                await refreshEntitlements()
+                dispatchPurchase(status: "success", transaction: transactionPayload(transaction))
+            case .userCancelled:
+                dispatchPurchase(status: "cancelled")
+            case .pending:
+                dispatchPurchase(status: "pending")
+            @unknown default:
+                dispatchPurchase(status: "failed", error: "The App Store returned an unknown purchase status.")
+            }
+        } catch {
+            dispatchPurchase(status: "failed", error: error.localizedDescription)
+        }
+    }
+
+    func refreshEntitlements() async {
+        var entitlements: [StoreKitTransactionPayload] = []
+
+        for await result in StoreKit.Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result else { continue }
+            guard transaction.productID == Self.subscriptionProductID else { continue }
+
+            entitlements.append(transactionPayload(transaction))
+        }
+
+        dispatch(
+            eventName: "iap-transactions-result",
+            payload: StoreKitEntitlementsResponse(
+                entitlements: entitlements,
+                hasActiveSubscription: !entitlements.isEmpty
+            )
+        )
+    }
+
+    func restorePurchases() async {
+        do {
+            try await AppStore.sync()
+            await refreshEntitlements()
+            dispatch(
+                eventName: "iap-restore-result",
+                payload: StoreKitRestoreResponse(status: "success", error: nil)
+            )
+        } catch {
+            dispatch(
+                eventName: "iap-restore-result",
+                payload: StoreKitRestoreResponse(status: "failed", error: error.localizedDescription)
+            )
+        }
+    }
+
+    private func productPayload(_ product: Product) -> StoreKitProductPayload {
+        StoreKitProductPayload(
+            id: product.id,
+            displayName: product.displayName,
+            description: product.description,
+            displayPrice: product.displayPrice,
+            price: NSDecimalNumber(decimal: product.price).stringValue,
+            currencyCode: product.priceFormatStyle.currencyCode,
+            subscriptionPeriod: subscriptionPeriodPayload(product.subscription?.subscriptionPeriod)
+        )
+    }
+
+    private func isMonthlySubscription(_ product: Product) -> Bool {
+        guard product.type == .autoRenewable else { return false }
+        guard let period = product.subscription?.subscriptionPeriod else { return false }
+        return period.value == 1 && period.unit == .month
+    }
+
+    private func subscriptionPeriodPayload(
+        _ period: Product.SubscriptionPeriod?
+    ) -> StoreKitSubscriptionPeriod? {
+        guard let period else { return nil }
+
+        let unit: String
+        switch period.unit {
+        case .day:
+            unit = "day"
+        case .week:
+            unit = "week"
+        case .month:
+            unit = "month"
+        case .year:
+            unit = "year"
+        @unknown default:
+            unit = "unknown"
+        }
+
+        return StoreKitSubscriptionPeriod(value: period.value, unit: unit)
+    }
+
+    private func transactionPayload(_ transaction: StoreKit.Transaction) -> StoreKitTransactionPayload {
+        StoreKitTransactionPayload(
+            productID: transaction.productID,
+            transactionID: String(transaction.id),
+            originalTransactionID: String(transaction.originalID),
+            purchaseDate: transaction.purchaseDate,
+            expirationDate: transaction.expirationDate
+        )
+    }
+
+    private func dispatchPurchase(
+        status: String,
+        transaction: StoreKitTransactionPayload? = nil,
+        error: String? = nil
+    ) {
+        dispatch(
+            eventName: "iap-purchase-result",
+            payload: StoreKitPurchaseResponse(status: status, transaction: transaction, error: error)
+        )
+    }
+
+    private func dispatch<Payload: Encodable>(eventName: String, payload: Payload) {
+        guard let webView = HangTime.webView else { return }
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(payload)
+            let payloadObject = try JSONSerialization.jsonObject(with: data)
+
+            Task {
+                do {
+                    _ = try await webView.callAsyncJavaScript(
+                        "window.dispatchEvent(new CustomEvent(eventName, { detail: payload }))",
+                        arguments: ["eventName": eventName, "payload": payloadObject],
+                        in: nil,
+                        contentWorld: .page
+                    )
+                } catch {
+                    print("StoreKit web event failed: \(error.localizedDescription)")
+                }
+            }
+        } catch {
+            print("StoreKit response encoding failed: \(error.localizedDescription)")
+        }
+    }
 }

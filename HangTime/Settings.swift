@@ -16,7 +16,7 @@ let allowedOrigins: [String] = ["hangtime.stevie-ray.nl"]
 
 // auth origins will open in modal and show toolbar for back into the main origin.
 // These should also appear in Info.plist
-let authOrigins: [String] = ["accounts.google.com","appleid.apple.com","identitytoolkit.googleapis.com","hangtime-app.firebaseapp.com","hangtime-app.appspot.com"]
+let authOrigins: [String] = ["accounts.google.com","appleid.apple.com","identitytoolkit.googleapis.com","hangtime-app.firebaseapp.com","hangtime-app.appspot.com","www.strava.com"]
 // allowedOrigins + authOrigins <= 10
 
 let platformCookie = Cookie(name: "app-platform", value: "iOS App Store")

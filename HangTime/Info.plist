@@ -104,6 +104,7 @@
 		<string>identitytoolkit.googleapis.com</string>
 		<string>hangtime-app.firebaseapp.com</string>
 		<string>hangtime-app.appspot.com</string>
+		<string>www.strava.com</string>
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
