@@ -44,13 +44,16 @@ jobs:
       - name: Select Xcode 26.3
         run: sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
 
+      - name: Install CocoaPods 1.16.2
+        run: sudo gem install cocoapods -v 1.16.2 --no-document
+
       - name: Show build environment
         run: |
           xcodebuild -version
           pod --version
 
       - name: Install CocoaPods dependencies
-        run: pod install --deployment
+        run: pod _1.16.2_ install --deployment
 
       - name: Install signing certificate and provisioning profile
         env:
