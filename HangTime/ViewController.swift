@@ -305,6 +305,7 @@ private struct StoreKitProductsResponse: Encodable {
 private struct StoreKitEntitlementsResponse: Encodable {
     let entitlements: [StoreKitTransactionPayload]
     let hasActiveSubscription: Bool
+    let legacyPaidAppPurchase: Bool
 }
 
 private struct StoreKitPurchaseResponse: Encodable {
@@ -321,6 +322,8 @@ private struct StoreKitRestoreResponse: Encodable {
 @MainActor
 private final class StoreKitBridge {
     private static let subscriptionProductID = "subscription"
+    private static let freeAppCutoffDate = ISO8601DateFormatter()
+        .date(from: "2026-07-19T23:24:08Z")!
 
     private var products: [Product] = []
     private var transactionUpdates: Task<Void, Never>?
@@ -422,9 +425,22 @@ private final class StoreKitBridge {
             eventName: "iap-transactions-result",
             payload: StoreKitEntitlementsResponse(
                 entitlements: entitlements,
-                hasActiveSubscription: !entitlements.isEmpty
+                hasActiveSubscription: !entitlements.isEmpty,
+                legacyPaidAppPurchase: await hasLegacyPaidAppPurchase()
             )
         )
+    }
+
+    private func hasLegacyPaidAppPurchase() async -> Bool {
+        do {
+            guard case .verified(let appTransaction) = try await AppTransaction.shared else {
+                return false
+            }
+
+            return appTransaction.originalPurchaseDate < Self.freeAppCutoffDate
+        } catch {
+            return false
+        }
     }
 
     func restorePurchases() async {
