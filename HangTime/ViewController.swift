@@ -321,7 +321,7 @@ private struct StoreKitRestoreResponse: Encodable {
 @MainActor
 private final class StoreKitBridge {
     private static let subscriptionProductID = "subscription"
-    private static let freeAppCutoffDate = Date(timeIntervalSince1970: 1_784_496_248)
+    private static let freeAppCutoffDate = Date(timeIntervalSince1970: 1_784_503_448)
 
     private var products: [Product] = []
     private var transactionUpdates: Task<Void, Never>?
