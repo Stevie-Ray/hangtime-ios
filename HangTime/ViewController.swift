@@ -71,8 +71,9 @@ class ViewController: UIViewController, WKNavigationDelegate, UIDocumentInteract
         }
 
         if #available(iOS 15.0, *), adaptiveUIStyle {
-            themeObservation = HangTime.webView.observe(\.underPageBackgroundColor) { [unowned self] webView, _ in
-                currentWebViewTheme = HangTime.webView.underPageBackgroundColor.isLight() ?? true ? .light : .dark
+            themeObservation = HangTime.webView.observe(\.underPageBackgroundColor) { [weak self] webView, _ in
+                guard let self else { return }
+                currentWebViewTheme = webView.underPageBackgroundColor.isLight() ?? true ? .light : .dark
                 self.overrideUIStyle()
             }
         }
@@ -84,9 +85,7 @@ class ViewController: UIViewController, WKNavigationDelegate, UIDocumentInteract
     }
 
     func createToolbarView() -> UIToolbar{
-        let winScene = UIApplication.shared.connectedScenes.first
-        let windowScene = winScene as! UIWindowScene
-        var statusBarHeight = windowScene.statusBarManager?.statusBarFrame.height ?? 60
+        var statusBarHeight = activeWindowScene()?.statusBarManager?.statusBarFrame.height ?? 60
         
         #if targetEnvironment(macCatalyst)
         if (statusBarHeight == 0){
@@ -322,8 +321,7 @@ private struct StoreKitRestoreResponse: Encodable {
 @MainActor
 private final class StoreKitBridge {
     private static let subscriptionProductID = "subscription"
-    private static let freeAppCutoffDate = ISO8601DateFormatter()
-        .date(from: "2026-07-19T23:24:08Z")!
+    private static let freeAppCutoffDate = Date(timeIntervalSince1970: 1_784_496_248)
 
     private var products: [Product] = []
     private var transactionUpdates: Task<Void, Never>?

@@ -41,6 +41,25 @@ jobs:
           printf '%s' "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 --decode > HangTime/GoogleService-Info.plist
           plutil -lint HangTime/GoogleService-Info.plist
 
+          FIREBASE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' HangTime/GoogleService-Info.plist)"
+          FIREBASE_PROJECT_ID="$(/usr/libexec/PlistBuddy -c 'Print :PROJECT_ID' HangTime/GoogleService-Info.plist)"
+          FIREBASE_API_KEY="$(/usr/libexec/PlistBuddy -c 'Print :API_KEY' HangTime/GoogleService-Info.plist)"
+
+          if [[ "$FIREBASE_BUNDLE_ID" != "$BUNDLE_ID" ]]; then
+            echo "::error::The Firebase configuration is for the wrong bundle ID."
+            exit 1
+          fi
+
+          if [[ "$FIREBASE_PROJECT_ID" != "hangtime-app" ]]; then
+            echo "::error::The Firebase configuration is for the wrong project."
+            exit 1
+          fi
+
+          if [[ "$FIREBASE_API_KEY" != A* || ${#FIREBASE_API_KEY} -ne 39 ]]; then
+            echo "::error::The Firebase API key has an invalid format."
+            exit 1
+          fi
+
       - name: Select Xcode 26.3
         run: sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
 

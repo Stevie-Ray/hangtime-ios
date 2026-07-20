@@ -24,7 +24,6 @@ func createWebView(container: UIView, WKSMH: WKScriptMessageHandler, WKND: WKNav
     config.limitsNavigationsToAppBoundDomains = true;
     config.allowsInlineMediaPlayback = true
     config.preferences.javaScriptCanOpenWindowsAutomatically = true
-    config.preferences.setValue(true, forKey: "standalone")
     
     let webView = WKWebView(frame: calcWebviewFrame(webviewView: container, toolbarView: nil), configuration: config)
     setCustomCookie(webView: webView)
@@ -83,14 +82,13 @@ func calcWebviewFrame(webviewView: UIView, toolbarView: UIToolbar?) -> CGRect{
         return CGRect(x: 0, y: toolbarView!.frame.height, width: webviewView.frame.width, height: webviewView.frame.height - toolbarView!.frame.height)
     }
     else {
-        let winScene = UIApplication.shared.connectedScenes.first
-        let windowScene = winScene as! UIWindowScene
-        var statusBarHeight = windowScene.statusBarManager?.statusBarFrame.height ?? 0
+        let windowScene = activeWindowScene()
+        var statusBarHeight = windowScene?.statusBarManager?.statusBarFrame.height ?? 0
 
         switch displayMode {
         case "fullscreen":
             #if targetEnvironment(macCatalyst)
-                if let titlebar = windowScene.titlebar {
+                if let titlebar = windowScene?.titlebar {
                     titlebar.titleVisibility = .hidden
                     titlebar.toolbar = nil
                 }
@@ -104,6 +102,11 @@ func calcWebviewFrame(webviewView: UIView, toolbarView: UIToolbar?) -> CGRect{
             return CGRect(x: 0, y: statusBarHeight, width: webviewView.frame.width, height: windowHeight)
         }
     }
+}
+
+func activeWindowScene() -> UIWindowScene? {
+    let windowScenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    return windowScenes.first(where: { $0.activationState == .foregroundActive }) ?? windowScenes.first
 }
 
 extension ViewController: WKUIDelegate, WKDownloadDelegate {
