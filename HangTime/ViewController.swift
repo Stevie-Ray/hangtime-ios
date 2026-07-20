@@ -432,6 +432,10 @@ private final class StoreKitBridge {
     }
 
     private func hasLegacyPaidAppPurchase() async -> Bool {
+        guard #available(iOS 16.0, *) else {
+            return false
+        }
+
         do {
             guard case .verified(let appTransaction) = try await AppTransaction.shared else {
                 return false
