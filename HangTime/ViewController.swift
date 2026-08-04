@@ -320,7 +320,12 @@ private struct StoreKitRestoreResponse: Encodable {
 
 @MainActor
 private final class StoreKitBridge {
-    private static let subscriptionProductID = "subscription"
+    private static let monthlySubscriptionProductID = "subscription"
+    private static let yearlySubscriptionProductID = "subscription_yearly"
+    private static let subscriptionProductIDs: Set<String> = [
+        monthlySubscriptionProductID,
+        yearlySubscriptionProductID
+    ]
     private static let freeAppCutoffDate = Date(timeIntervalSince1970: 1_784_503_448)
 
     private var products: [Product] = []
@@ -346,14 +351,14 @@ private final class StoreKitBridge {
 
     func fetchProducts() async {
         do {
-            products = try await Product.products(for: [Self.subscriptionProductID])
-                .filter(isMonthlySubscription)
+            products = try await Product.products(for: Self.subscriptionProductIDs)
+                .filter(isSupportedSubscription)
 
             dispatch(
                 eventName: "iap-products-result",
                 payload: StoreKitProductsResponse(
                     products: products.map(productPayload),
-                    error: products.isEmpty ? "The monthly subscription is not available." : nil
+                    error: products.isEmpty ? "The subscriptions are not available." : nil
                 )
             )
         } catch {
@@ -366,15 +371,15 @@ private final class StoreKitBridge {
     }
 
     func purchase(productID: String?) async {
-        guard productID == Self.subscriptionProductID else {
+        guard let productID, Self.subscriptionProductIDs.contains(productID) else {
             dispatchPurchase(status: "failed", error: "Invalid subscription product.")
             return
         }
 
         if products.isEmpty {
             do {
-                products = try await Product.products(for: [Self.subscriptionProductID])
-                    .filter(isMonthlySubscription)
+                products = try await Product.products(for: Self.subscriptionProductIDs)
+                    .filter(isSupportedSubscription)
             } catch {
                 dispatchPurchase(status: "failed", error: error.localizedDescription)
                 return
@@ -382,7 +387,7 @@ private final class StoreKitBridge {
         }
 
         guard let product = products.first(where: { $0.id == productID }) else {
-            dispatchPurchase(status: "failed", error: "The monthly subscription is not available.")
+            dispatchPurchase(status: "failed", error: "The selected subscription is not available.")
             return
         }
 
@@ -414,7 +419,7 @@ private final class StoreKitBridge {
 
         for await result in StoreKit.Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
-            guard transaction.productID == Self.subscriptionProductID else { continue }
+            guard Self.subscriptionProductIDs.contains(transaction.productID) else { continue }
 
             entitlements.append(transactionPayload(transaction))
         }
@@ -473,10 +478,11 @@ private final class StoreKitBridge {
         )
     }
 
-    private func isMonthlySubscription(_ product: Product) -> Bool {
+    private func isSupportedSubscription(_ product: Product) -> Bool {
         guard product.type == .autoRenewable else { return false }
         guard let period = product.subscription?.subscriptionPeriod else { return false }
-        return period.value == 1 && period.unit == .month
+        guard period.value == 1 else { return false }
+        return period.unit == .month || period.unit == .year
     }
 
     private func subscriptionPeriodPayload(
