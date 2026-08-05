@@ -255,9 +255,13 @@ extension ViewController: WKScriptMessageHandler {
         }
         else if message.name == "iap-purchase-request" {
             let body = message.body as? [String: Any]
+            let appAccountToken = body?["appAccountToken"] as? String
             let productID = body?["productID"] as? String
             Task {
-                await storeKitBridge.purchase(productID: productID)
+                await storeKitBridge.purchase(
+                    productID: productID,
+                    appAccountToken: appAccountToken
+                )
             }
         }
         else if message.name == "iap-transactions-request" {
@@ -294,10 +298,12 @@ private struct StoreKitTransactionPayload: Encodable {
     let originalTransactionID: String
     let purchaseDate: Date
     let expirationDate: Date?
+    let signedTransaction: String
 }
 
 private struct StoreKitProductsResponse: Encodable {
     let products: [StoreKitProductPayload]
+    let supportsSignedTransactions: Bool
     let error: String?
 }
 
@@ -305,6 +311,8 @@ private struct StoreKitEntitlementsResponse: Encodable {
     let entitlements: [StoreKitTransactionPayload]
     let hasActiveSubscription: Bool
     let legacyPaidAppPurchase: Bool
+    let signedAppTransaction: String?
+    let supportsSignedTransactions: Bool
 }
 
 private struct StoreKitPurchaseResponse: Encodable {
@@ -358,6 +366,7 @@ private final class StoreKitBridge {
                 eventName: "iap-products-result",
                 payload: StoreKitProductsResponse(
                     products: products.map(productPayload),
+                    supportsSignedTransactions: true,
                     error: products.isEmpty ? "The subscriptions are not available." : nil
                 )
             )
@@ -365,14 +374,22 @@ private final class StoreKitBridge {
             products = []
             dispatch(
                 eventName: "iap-products-result",
-                payload: StoreKitProductsResponse(products: [], error: error.localizedDescription)
+                payload: StoreKitProductsResponse(
+                    products: [],
+                    supportsSignedTransactions: true,
+                    error: error.localizedDescription
+                )
             )
         }
     }
 
-    func purchase(productID: String?) async {
+    func purchase(productID: String?, appAccountToken: String?) async {
         guard let productID, Self.subscriptionProductIDs.contains(productID) else {
             dispatchPurchase(status: "failed", error: "Invalid subscription product.")
+            return
+        }
+        guard let appAccountToken, let accountToken = UUID(uuidString: appAccountToken) else {
+            dispatchPurchase(status: "failed", error: "Invalid App Store account token.")
             return
         }
 
@@ -392,7 +409,7 @@ private final class StoreKitBridge {
         }
 
         do {
-            switch try await product.purchase() {
+            switch try await product.purchase(options: [.appAccountToken(accountToken)]) {
             case .success(let verificationResult):
                 guard case .verified(let transaction) = verificationResult else {
                     dispatchPurchase(status: "failed", error: "The App Store transaction could not be verified.")
@@ -401,7 +418,13 @@ private final class StoreKitBridge {
 
                 await transaction.finish()
                 await refreshEntitlements()
-                dispatchPurchase(status: "success", transaction: transactionPayload(transaction))
+                dispatchPurchase(
+                    status: "success",
+                    transaction: transactionPayload(
+                        transaction,
+                        signedTransaction: verificationResult.jwsRepresentation
+                    )
+                )
             case .userCancelled:
                 dispatchPurchase(status: "cancelled")
             case .pending:
@@ -416,37 +439,57 @@ private final class StoreKitBridge {
 
     func refreshEntitlements() async {
         var entitlements: [StoreKitTransactionPayload] = []
+        var activeProductIDs: Set<String> = []
 
         for await result in StoreKit.Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
             guard Self.subscriptionProductIDs.contains(transaction.productID) else { continue }
 
-            entitlements.append(transactionPayload(transaction))
+            activeProductIDs.insert(transaction.productID)
+            entitlements.append(
+                transactionPayload(transaction, signedTransaction: result.jwsRepresentation)
+            )
         }
 
+        for productID in Self.subscriptionProductIDs.subtracting(activeProductIDs) {
+            guard let result = await StoreKit.Transaction.latest(for: productID) else { continue }
+            guard case .verified(let transaction) = result else { continue }
+
+            entitlements.append(
+                transactionPayload(transaction, signedTransaction: result.jwsRepresentation)
+            )
+        }
+
+        let appTransactionState = await appTransactionState()
         dispatch(
             eventName: "iap-transactions-result",
             payload: StoreKitEntitlementsResponse(
                 entitlements: entitlements,
-                hasActiveSubscription: !entitlements.isEmpty,
-                legacyPaidAppPurchase: await hasLegacyPaidAppPurchase()
+                hasActiveSubscription: !activeProductIDs.isEmpty,
+                legacyPaidAppPurchase: appTransactionState.isLegacy,
+                signedAppTransaction: appTransactionState.signedTransaction,
+                supportsSignedTransactions: true
             )
         )
     }
 
-    private func hasLegacyPaidAppPurchase() async -> Bool {
+    private func appTransactionState() async -> (isLegacy: Bool, signedTransaction: String?) {
         guard #available(iOS 16.0, *) else {
-            return false
+            return (false, nil)
         }
 
         do {
-            guard case .verified(let appTransaction) = try await AppTransaction.shared else {
-                return false
+            let result = try await AppTransaction.shared
+            guard case .verified(let appTransaction) = result else {
+                return (false, nil)
             }
 
-            return appTransaction.originalPurchaseDate < Self.freeAppCutoffDate
+            return (
+                appTransaction.originalPurchaseDate < Self.freeAppCutoffDate,
+                result.jwsRepresentation
+            )
         } catch {
-            return false
+            return (false, nil)
         }
     }
 
@@ -507,13 +550,17 @@ private final class StoreKitBridge {
         return StoreKitSubscriptionPeriod(value: period.value, unit: unit)
     }
 
-    private func transactionPayload(_ transaction: StoreKit.Transaction) -> StoreKitTransactionPayload {
+    private func transactionPayload(
+        _ transaction: StoreKit.Transaction,
+        signedTransaction: String
+    ) -> StoreKitTransactionPayload {
         StoreKitTransactionPayload(
             productID: transaction.productID,
             transactionID: String(transaction.id),
             originalTransactionID: String(transaction.originalID),
             purchaseDate: transaction.purchaseDate,
-            expirationDate: transaction.expirationDate
+            expirationDate: transaction.expirationDate,
+            signedTransaction: signedTransaction
         )
     }
 
