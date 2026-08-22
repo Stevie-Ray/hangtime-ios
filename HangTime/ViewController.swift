@@ -310,8 +310,6 @@ private struct StoreKitProductsResponse: Encodable {
 private struct StoreKitEntitlementsResponse: Encodable {
     let entitlements: [StoreKitTransactionPayload]
     let hasActiveSubscription: Bool
-    let legacyPaidAppPurchase: Bool
-    let signedAppTransaction: String?
     let supportsSignedTransactions: Bool
 }
 
@@ -334,7 +332,6 @@ private final class StoreKitBridge {
         monthlySubscriptionProductID,
         yearlySubscriptionProductID
     ]
-    private static let freeAppCutoffDate = Date(timeIntervalSince1970: 1_784_503_448)
 
     private var products: [Product] = []
     private var transactionUpdates: Task<Void, Never>?
@@ -460,37 +457,14 @@ private final class StoreKitBridge {
             )
         }
 
-        let appTransactionState = await appTransactionState()
         dispatch(
             eventName: "iap-transactions-result",
             payload: StoreKitEntitlementsResponse(
                 entitlements: entitlements,
                 hasActiveSubscription: !activeProductIDs.isEmpty,
-                legacyPaidAppPurchase: appTransactionState.isLegacy,
-                signedAppTransaction: appTransactionState.signedTransaction,
                 supportsSignedTransactions: true
             )
         )
-    }
-
-    private func appTransactionState() async -> (isLegacy: Bool, signedTransaction: String?) {
-        guard #available(iOS 16.0, *) else {
-            return (false, nil)
-        }
-
-        do {
-            let result = try await AppTransaction.shared
-            guard case .verified(let appTransaction) = result else {
-                return (false, nil)
-            }
-
-            return (
-                appTransaction.originalPurchaseDate < Self.freeAppCutoffDate,
-                result.jwsRepresentation
-            )
-        } catch {
-            return (false, nil)
-        }
     }
 
     func restorePurchases() async {
