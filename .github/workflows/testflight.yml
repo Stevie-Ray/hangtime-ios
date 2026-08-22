@@ -234,14 +234,40 @@ jobs:
             exit 1
           fi
 
-          xcrun altool \
+          run_altool() {
+            local operation="$1"
+            shift
+            local output_path="$RUNNER_TEMP/altool-$operation.json"
+
+            set +e
+            xcrun altool "$@" --output-format json > "$output_path" 2>&1
+            local exit_code=$?
+            set -e
+
+            cat "$output_path"
+
+            if (( exit_code != 0 )); then
+              echo "::error::altool $operation exited with status $exit_code."
+              return "$exit_code"
+            fi
+
+            if ! jq -e '
+              ((."product-errors" // []) | length == 0) and
+              ((."success-message" // "") | length > 0)
+            ' "$output_path" > /dev/null; then
+              echo "::error::altool $operation did not report success."
+              return 1
+            fi
+          }
+
+          run_altool validate \
             --validate-app \
             --file "$IPA_PATH" \
             --type ios \
             --apiKey "$API_KEY_ID" \
             --apiIssuer "$API_ISSUER_ID"
 
-          xcrun altool \
+          run_altool upload \
             --upload-app \
             --file "$IPA_PATH" \
             --type ios \
