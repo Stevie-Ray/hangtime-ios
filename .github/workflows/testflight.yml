@@ -237,14 +237,16 @@ jobs:
           run_altool() {
             local operation="$1"
             shift
-            local output_path="$RUNNER_TEMP/altool-$operation.json"
+            local json_path="$RUNNER_TEMP/altool-$operation.json"
+            local log_path="$RUNNER_TEMP/altool-$operation.log"
 
             set +e
-            xcrun altool "$@" --output-format json > "$output_path" 2>&1
+            xcrun altool "$@" --output-format json > "$json_path" 2> "$log_path"
             local exit_code=$?
             set -e
 
-            cat "$output_path"
+            cat "$log_path"
+            cat "$json_path"
 
             if (( exit_code != 0 )); then
               echo "::error::altool $operation exited with status $exit_code."
@@ -254,7 +256,7 @@ jobs:
             if ! jq -e '
               ((."product-errors" // []) | length == 0) and
               ((."success-message" // "") | length > 0)
-            ' "$output_path" > /dev/null; then
+            ' "$json_path" > /dev/null; then
               echo "::error::altool $operation did not report success."
               return 1
             fi
