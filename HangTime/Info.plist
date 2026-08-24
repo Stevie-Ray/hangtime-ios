@@ -2,10 +2,26 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSCameraUsageDescription</key>
-	<string>HangTime uses the camera when you choose Take Photo while changing your profile picture. The photo you take is uploaded as your HangTime profile picture.</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>cs</string>
+		<string>de</string>
+		<string>en</string>
+		<string>es</string>
+		<string>fr</string>
+		<string>it</string>
+		<string>ja</string>
+		<string>nl</string>
+		<string>pl</string>
+		<string>pt-PT</string>
+		<string>zh-Hans</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>HangTime</string>
 	<key>CFBundleExecutable</key>
@@ -28,20 +44,24 @@
 			<key>CFBundleURLName</key>
 			<string></string>
 			<key>CFBundleURLSchemes</key>
-			<array />
+			<array/>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>HangTime uses the camera when you choose Take Photo while changing your profile picture. The photo you take is uploaded as your HangTime profile picture.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -61,6 +81,27 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Quick Workout</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>https://hangtime.stevie-ray.nl/workouts/quick?utm_source=shortcut</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Workouts</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>https://hangtime.stevie-ray.nl/?utm_source=shortcut</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Feed</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>https://hangtime.stevie-ray.nl/feed?utm_source=shortcut</string>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>processing</string>
@@ -101,33 +142,6 @@
 		<string>hangtime-app.firebaseapp.com</string>
 		<string>hangtime-app.appspot.com</string>
 		<string>www.strava.com</string>
-	</array>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	</array>
-	<key>UIApplicationShortcutItems</key>
-<array>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>https://hangtime.stevie-ray.nl/workouts/quick?utm_source=shortcut</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Quick Workout</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>https://hangtime.stevie-ray.nl/?utm_source=shortcut</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Workouts</string>
-		</dict>
-		<dict>
-			<key>UIApplicationShortcutItemType</key>
-			<string>https://hangtime.stevie-ray.nl/feed?utm_source=shortcut</string>
-			<key>UIApplicationShortcutItemTitle</key>
-			<string>Feed</string>
-		</dict>
 	</array>
 </dict>
 </plist>
